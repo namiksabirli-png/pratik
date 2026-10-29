@@ -1,0 +1,674 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Çoklu PDF Soru Karşılaştırma</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root{
+    --bg:#faf7f9; --card:#ffffff; --text:#2a2230; --muted:#7a6f80;
+    --line:#eadfe7; --pink:#ff3fa4; --pink-soft:#ffe1f0;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#17131a; --card:#221c26; --text:#f2ecf4; --muted:#a99db0; --line:#3a3040; --pink-soft:#4a1f36; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text)}
+  header{padding:28px 16px 8px;max-width:1100px;margin:auto}
+  h1{margin:0;font-size:26px}
+  h1 span{color:var(--pink)}
+  header p{color:var(--muted);margin:6px 0 0;line-height:1.5}
+  main{max-width:1100px;margin:auto;padding:12px 16px 60px;display:grid;gap:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+  .drop{border:2px dashed var(--pink);border-radius:12px;padding:26px 14px;text-align:center;cursor:pointer;background:var(--pink-soft)}
+  .drop.over{filter:brightness(1.05)}
+  .drop b{color:var(--pink)}
+  .drop small{display:block;color:var(--muted);margin-top:6px}
+  .flist{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:6px}
+  .flist li{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;font-size:14px}
+  .flist .no{background:var(--pink);color:#fff;border-radius:6px;padding:2px 8px;font-weight:700;font-size:12px;white-space:nowrap}
+  .flist .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .flist .sz{color:var(--muted);font-size:12px;white-space:nowrap}
+  .flist .cnt{font-size:12px;white-space:nowrap;color:var(--pink);font-weight:600}
+  .flist button{padding:6px 10px;font-size:13px}
+  .x{background:transparent;color:var(--muted);border:1px solid var(--line)}
+  .row{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin-top:14px}
+  label{font-size:14px}
+  select,input[type=number]{padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text)}
+  button{background:var(--pink);color:#fff;border:0;border-radius:10px;padding:10px 16px;font-weight:600;cursor:pointer;font-size:15px}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button.ghost{background:transparent;color:var(--pink);border:1px solid var(--pink)}
+  #status{color:var(--muted);font-size:14px;margin-top:10px;min-height:1em}
+  .stats{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+  .stat{background:var(--pink-soft);border-radius:10px;padding:10px 14px;min-width:120px}
+  .stat b{display:block;font-size:22px;color:var(--pink)}
+  .stat span{font-size:12px;color:var(--muted)}
+  .group{border-left:4px solid var(--pink);padding:8px 12px;margin:10px 0;background:var(--bg);border-radius:0 8px 8px 0;font-size:14px}
+  .group .q{font-size:13px;color:var(--muted);margin-top:4px}
+  .group a{color:var(--pink);cursor:pointer;text-decoration:underline}
+  #reportText{width:100%;min-height:180px;font-family:ui-monospace,monospace;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:10px;background:var(--bg);color:var(--text)}
+  .tabs{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+  .tabs button{background:transparent;color:var(--pink);border:1px solid var(--pink);padding:7px 12px;font-size:14px}
+  .tabs button.on{background:var(--pink);color:#fff}
+  .pages{display:grid;gap:18px;justify-items:center}
+  .pagewrap{max-width:100%}
+  .pagewrap canvas{max-width:100%;height:auto;display:block;box-shadow:0 2px 12px rgba(0,0,0,.15);background:#fff}
+  .pagelabel{font-size:12px;color:var(--muted);margin-bottom:4px}
+  .hidden{display:none}
+  .warn{color:#c0392b;font-size:14px}
+  table{border-collapse:collapse;width:100%;font-size:13px}
+  th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+  th{color:var(--muted);font-weight:600}
+  .matrix td,.matrix th{text-align:center;border:1px solid var(--line)}
+  .matrix td.hit{background:var(--pink-soft);color:var(--pink);font-weight:700}
+  .matrix td.self{color:var(--muted)}
+  .scroll{overflow-x:auto}
+</style>
+</head>
+<body>
+<header>
+  <h1>Çoklu PDF <span>Soru</span> Karşılaştırma</h1>
+  <p>En fazla 10 PDF'i birbiriyle karşılaştırır. Bir soru yalnızca <b>iki koşul birlikte</b> sağlanırsa ortak sayılır: soru numarasından sonraki ilk 3 kelime birebir aynı <b>ve</b> A şıkkının ilk 3 kelimesi birebir aynı. Ortak sorular bulundukları her PDF'te pembe ile işaretlenir; her PDF ayrı ayrı indirilir, yazılı rapor çıkarılır. Dosyalar bilgisayarınızdan çıkmaz.</p>
+</header>
+
+<main>
+  <section class="card">
+    <div class="drop" id="drop">
+      <div>📄 PDF'leri buraya sürükleyin veya <b>tıklayıp seçin</b></div>
+      <small>Birden fazla dosyayı aynı anda seçebilirsiniz · en fazla 10 PDF</small>
+      <input type="file" id="file" accept="application/pdf" multiple hidden>
+    </div>
+    <ul class="flist" id="flist"></ul>
+    <div class="row">
+      <label>İşaretleme:
+        <select id="style">
+          <option value="both">Pembe dolgu + çarpı çizgisi</option>
+          <option value="fill">Sadece pembe dolgu</option>
+          <option value="cross">Sadece pembe çarpı çizgisi</option>
+        </select>
+      </label>
+      <label><input type="checkbox" id="within"> Aynı PDF'in kendi içindeki tekrarları da bul</label>
+      <label><input type="checkbox" id="stemOnly"> A şıkkı okunamayan sorularda yalnızca soru köküne bak</label>
+      <label>Kelime sayısı: <input type="number" id="nWords" value="3" min="1" max="10" style="width:60px"></label>
+    </div>
+    <div class="row">
+      <button id="run" disabled>Karşılaştır</button>
+      <button id="dlZip" class="ghost" disabled>Tüm işaretli PDF'leri indir (.zip)</button>
+      <button id="dlReport" class="ghost" disabled>Raporu indir (.txt)</button>
+      <button id="clear" class="ghost" disabled>Listeyi temizle</button>
+    </div>
+    <div id="status"></div>
+  </section>
+
+  <section class="card hidden" id="reportCard">
+    <h2 style="margin-top:0">Rapor</h2>
+    <div class="stats" id="stats"></div>
+    <h3>Hangi PDF hangisiyle kaç ortak soru içeriyor?</h3>
+    <div class="scroll" id="matrix"></div>
+    <h3>Ortak sorular</h3>
+    <div id="groups"></div>
+    <h3>Metin rapor</h3>
+    <textarea id="reportText" readonly></textarea>
+    <details style="margin-top:14px">
+      <summary style="cursor:pointer;font-weight:600">Algılanan tüm sorular (bir soru kaçırıldıysa buradan kontrol edin)</summary>
+      <div class="scroll" id="allQ" style="margin-top:10px"></div>
+    </details>
+  </section>
+
+  <section class="card hidden" id="previewCard">
+    <h2 style="margin-top:0">Önizleme</h2>
+    <div class="tabs" id="tabs"></div>
+    <div id="pagesHost"></div>
+  </section>
+</main>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+const MAX_FILES = 10;
+const $ = id => document.getElementById(id);
+let files = [];          // { bytes, name, size }
+let result = null;       // karşılaştırma sonucu
+let activeTab = 0;
+const rendered = {};     // önizlemesi çizilmiş PDF'ler
+
+/* ---------- dosya seçimi ---------- */
+const drop = $("drop"), input = $("file");
+drop.onclick = () => input.click();
+drop.ondragover = e => { e.preventDefault(); drop.classList.add("over"); };
+drop.ondragleave = () => drop.classList.remove("over");
+drop.ondrop = e => { e.preventDefault(); drop.classList.remove("over"); addFiles([...e.dataTransfer.files]); };
+input.onchange = () => { addFiles([...input.files]); input.value = ""; };
+
+async function addFiles(list){
+  const pdfs = list.filter(f => /pdf$/i.test(f.type) || /\.pdf$/i.test(f.name));
+  if (!pdfs.length) { setStatus("Lütfen PDF dosyası seçin.", true); return; }
+  let skipped = 0;
+  for (const f of pdfs) {
+    if (files.length >= MAX_FILES) { skipped++; continue; }
+    files.push({ bytes: new Uint8Array(await f.arrayBuffer()), name: f.name, size: f.size });
+  }
+  invalidate();
+  setStatus(skipped ? `En fazla ${MAX_FILES} PDF eklenebilir; ${skipped} dosya eklenmedi.` : readyMsg(), !!skipped);
+}
+function removeFile(i){ files.splice(i, 1); invalidate(); setStatus(readyMsg()); }
+$("clear").onclick = () => { files = []; invalidate(); setStatus(""); };
+function readyMsg(){
+  if (files.length < 2) return files.length ? "Karşılaştırmak için en az bir PDF daha ekleyin." : "";
+  return `${files.length} PDF hazır. "Karşılaştır" butonuna basın.`;
+}
+function invalidate(){
+  result = null;
+  ["dlZip", "dlReport"].forEach(id => $(id).disabled = true);
+  $("reportCard").classList.add("hidden"); $("previewCard").classList.add("hidden");
+  renderFileList();
+}
+function renderFileList(){
+  const ul = $("flist"); ul.innerHTML = "";
+  files.forEach((f, i) => {
+    const li = document.createElement("li");
+    const marked = result ? result.qs[i].filter(q => q.role).length : null;
+    li.innerHTML = `<span class="no">PDF ${i + 1}</span><span class="nm" title="${esc(f.name)}">${esc(f.name)}</span>
+      <span class="sz">${(f.size/1024/1024).toFixed(2)} MB</span>` +
+      (marked !== null ? `<span class="cnt">${marked} işaretli soru</span>` : "");
+    if (result) {
+      const b = document.createElement("button"); b.className = "ghost"; b.textContent = "İndir";
+      b.disabled = !marked; b.onclick = () => downloadOne(i);
+      li.appendChild(b);
+    } else {
+      const x = document.createElement("button"); x.className = "x"; x.textContent = "Kaldır";
+      x.onclick = () => removeFile(i);
+      li.appendChild(x);
+    }
+    ul.appendChild(li);
+  });
+  $("run").disabled = files.length < 2;
+  $("clear").disabled = !files.length;
+}
+function setStatus(t, warn){ $("status").innerHTML = warn ? '<span class="warn">'+t+'</span>' : t; }
+const pdfName = i => `PDF ${i + 1}`;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
+
+/* ---------- ortak okuma ve eşleştirme kodu ---------- */
+function normWords(s){
+  return s.toLocaleLowerCase("tr")
+    .replace(/[\u2018\u2019\u201C\u201D"'`´]/g, "")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .split(/\s+/).filter(Boolean);
+}
+const Q_START = /^\s*(\d{1,3})\s*[\.\)\-–]\s*(.*)$/;
+const OPT_A = /(?:^|\s)A\s*[\)\.]\s*/;
+const OPT_B = /\sB\s*[\)\.]\s/;
+
+/* ---------- sayfa metnini satırlara ayır ---------- */
+function buildLines(items, pageX0, pageW){
+  // her öğe: x, y (taban çizgisi), w, h
+  const els = items.filter(it => it.str && it.str.trim()).map(it => {
+    const t = it.transform, h = Math.hypot(t[2], t[3]) || it.height || 10;
+    return { str: it.str, x: t[4], y: t[5], w: it.width, h };
+  });
+
+  // Sütunları bul: soru numarası gibi görünen öğelerin x konumlarındaki en büyük boşluk.
+  // Yalnızca gerçek numara öğeleri sayılır ("7." / "7)" / tek başına "7"); metin içindeki "5 kişi" gibi sayılar sayılmaz.
+  const isNumTok = s => /^\s*\d{1,3}\s*[\.\)]?\s*$/.test(s) || /^\s*\d{1,3}[\.\)]\s/.test(s);
+  const xs = els.filter(e => isNumTok(e.str)).map(e => e.x).sort((a, b) => a - b);
+  let split = null, best = 0, bi = -1;
+  for (let i = 0; i < xs.length - 1; i++) {
+    const gap = xs[i + 1] - xs[i];
+    if (gap > best) { best = gap; split = xs[i + 1] - 8; bi = i; }
+  }
+  if (best < pageW * 0.25) split = null;
+  // Sağ tarafta sütun olabilmesi için orada da metin olmalı ve bölme çizgisi sayfa ortasına yakın olmalı
+  if (split !== null) {
+    const rel = (split - pageX0) / pageW;
+    const leftText = els.filter(e => e.x < split && !isNumTok(e.str)).length;
+    const rightText = els.filter(e => e.x >= split && !isNumTok(e.str)).length;
+    if (rel < 0.3 || rel > 0.7 || leftText < 5 || rightText < 5) split = null;
+  }
+  // Sayılar tek tarafta kaldıysa: sayfanın iki yarısında da yoğun metin varsa yine ikiye böl
+  if (split === null) {
+    const mid = pageX0 + pageW / 2;
+    const leftOnly = els.filter(e => e.x + e.w < mid - 4).length;
+    const rightOnly = els.filter(e => e.x > mid + 4).length;
+    const crossing = els.filter(e => e.x < mid - 4 && e.x + e.w > mid + 4).length;
+    if (leftOnly > 10 && rightOnly > 10 && crossing < (leftOnly + rightOnly) * 0.08) split = mid;
+  }
+
+  const cols = split !== null ? [[], []] : [[]];
+  els.forEach(e => cols[split !== null && e.x >= split ? 1 : 0].push(e));
+
+  const out = [];
+  cols.forEach((col, ci) => {
+    // Soru numarasını (ayrı çerçevede, farklı yükseklikte olabilir) sağındaki ilk metin satırına hizala:
+    // böylece numaradan sonraki ilk kelimeler her zaman parçanın/sorunun en başından alınır.
+    for (const n of col) {
+      if (!/^\s*\d{1,3}\s*[\.\)]?\s*$/.test(n.str)) continue;
+      let bestE = null, bestD = Infinity;
+      for (const e of col) {
+        if (e === n || isNumTok(e.str)) continue;
+        const dx = e.x - (n.x + n.w);
+        if (dx < -2 || dx > Math.max(90, n.h * 6)) continue;      // numaranın hemen sağında
+        const dy = n.y - e.y;                                       // metin numaradan yukarıda ya da aşağıda olabilir
+        if (Math.abs(dy) > Math.max(n.h, e.h) * 1.3) continue;
+        // en üstteki aday satırı tercih et (parçanın ilk satırı)
+        const score = Math.abs(dy) - e.y * 0.001;
+        if (score < bestD) { bestD = score; bestE = e; }
+      }
+      if (bestE) {
+        // aynı satıra en yakın ama daha yukarıda başka satır varsa (ilk satır) onu seç
+        const upper = col.filter(e => !isNumTok(e.str) && e.y > bestE.y && e.y - bestE.y < bestE.h * 1.6 &&
+                                       Math.abs(e.y - n.y) <= Math.max(n.h, e.h) * 1.3 &&
+                                       e.x - (n.x + n.w) >= -2 && e.x - (n.x + n.w) <= Math.max(90, n.h * 6));
+        if (upper.length) bestE = upper.sort((a, b) => b.y - a.y)[0];
+        n.y = bestE.y;
+      }
+    }
+    col.sort((a, b) => b.y - a.y || a.x - b.x);
+    const lines = [];
+    for (const e of col) {
+      // aynı satır: dikey aralıklar örtüşüyorsa (büyük/kalın soru numaraları biraz kaymış olabilir)
+      const ln = lines.find(l => Math.abs(l.y - e.y) < Math.max(3, Math.min(l.h, e.h) * 0.6));
+      if (ln) { ln.els.push(e); ln.h = Math.max(ln.h, e.h); }
+      else lines.push({ y: e.y, h: e.h, els: [e] });
+    }
+    lines.sort((a, b) => b.y - a.y);
+    const built = lines.map(l => {
+      l.els.sort((a, b) => a.x - b.x);
+      let text = "", prevEnd = null;
+      for (const e of l.els) {
+        if (prevEnd !== null && e.x - prevEnd > e.h * 0.15 && !text.endsWith(" ")) text += " ";
+        text += e.str; prevEnd = e.x + e.w;
+      }
+      return {
+        col: ci, text, first: l.els[0].str.trim(),
+        x1: Math.min(...l.els.map(e => e.x)),
+        x2: Math.max(...l.els.map(e => e.x + e.w)),
+        y1: l.y - l.h * 0.3, y2: l.y + l.h
+      };
+    });
+    // sütunun sol kenarı (soru numaraları buradan başlar)
+    const lefts = built.map(b => b.x1).sort((a, b) => a - b);
+    const colLeft = lefts.length ? lefts[Math.floor(lefts.length * 0.05)] : 0;
+    built.forEach(b => b.colLeft = colLeft);
+    out.push(...built);
+  });
+  return out;
+}
+
+// Satır bir soru başlangıcı mı? {num, rest} ya da null
+function questionStart(ln){
+  if (ln.x1 > ln.colLeft + 25) return null;                 // girintili satırlar soru başı değildir
+  let m = ln.text.match(/^\s*(\d{1,3})\s*[\.\)\-–:]\s*(.*)$/);
+  if (!m && /^\d{1,3}$/.test(ln.first)) {                   // "12" ayrı öğe + metin (noktasız numara)
+    m = ln.text.match(/^\s*(\d{1,3})\s+(\S.*)$/);
+  }
+  if (!m) return null;
+  const n = parseInt(m[1]);
+  if (n < 1 || n > 300) return null;
+  if (/^\d/.test(m[2])) return null;                          // "12.5", "1 2 3" gibi sayılar
+  return { num: n, rest: m[2] };
+}
+
+// Satır başındaki şık harflerini standart "A) " biçimine getir
+function normalizeOptionLine(ln){
+  let t = ln.text;
+  t = t.replace(/^\s*([A-E])\s*[\)\.\-:]\s*/, " $1) ");
+  if (/^[A-E]$/.test(ln.first)) t = t.replace(/^\s*([A-E])\s+/, " $1) ");   // daire/kutu içinde harf
+  return t;
+}
+
+/* ---------- eşleştirme kuralı ----------
+   İKİ KOŞUL BİRLİKTE sağlanmalı:
+   1) Soru numarasından sonraki ilk N kelime birebir aynı
+   2) A şıkkının ilk N kelimesi birebir aynı
+   Önce 1. koşula göre gruplanır, sonra her grup kendi içinde 2. koşula göre ayrılır. */
+const sameWords = (a, b) => a.length === b.length && a.every((w, i) => w === b[i]);
+function canCompare(q, nWords, stemOnly){
+  if (q.stemWords.length < nWords) return false;        // soru kökünde N kelimeden az okunduysa güvenilmez, karşılaştırma
+  if (!q.aWords) return stemOnly;                        // A şıkkı yoksa yalnızca seçenek açıksa
+  return true;
+}
+function findGroups(questions, nWords, stemOnly){
+  const byStem = new Map();
+  for (const q of questions) {
+    if (!canCompare(q, nWords, stemOnly)) continue;
+    const k = q.stemWords.join(" ");
+    if (!byStem.has(k)) byStem.set(k, []);
+    byStem.get(k).push(q);
+  }
+  const groups = [];
+  for (const sameStem of byStem.values()) {
+    if (sameStem.length < 2) continue;
+    const byA = new Map();
+    for (const q of sameStem) {
+      const k = q.aWords ? q.aWords.join(" ") : "\u0000A-YOK";
+      if (!byA.has(k)) byA.set(k, []);
+      byA.get(k).push(q);
+    }
+    for (const g of byA.values()) {
+      if (g.length < 2) continue;
+      // son güvence: grubun her üyesi ilk üyeyle iki koşulda da aynı mı?
+      const f = g[0];
+      const ok = g.every(q => sameWords(q.stemWords, f.stemWords) &&
+                              (f.aWords ? (q.aWords && sameWords(q.aWords, f.aWords)) : !q.aWords));
+      if (ok) groups.push(g);
+    }
+  }
+  return groups;
+}
+
+/* ---------- bir PDF'teki soruları çıkar ---------- */
+async function extractQuestions(src, nWords){
+  const doc = await pdfjsLib.getDocument({ data: files[src].bytes.slice() }).promise;
+  const questions = [];
+  let cur = null, totalChars = 0;
+  for (let p = 1; p <= doc.numPages; p++) {
+    setStatus(`${pdfName(src)} / ${files.length}: sayfa ${p}/${doc.numPages} taranıyor…`);
+    const page = await doc.getPage(p);
+    const vp = page.getViewport({ scale: 1 });
+    const tc = await page.getTextContent();
+    tc.items.forEach(i => totalChars += (i.str || "").length);
+    const lines = buildLines(tc.items, vp.viewBox[0], vp.viewBox[2] - vp.viewBox[0]);
+    for (const ln of lines) {
+      const st = questionStart(ln);
+      if (st) {
+        cur = { src, num: st.num, page: p, col: ln.col, text: st.rest, segs: {} };
+        questions.push(cur);
+      }
+      if (!cur) continue;
+      if (!st) cur.text += " " + normalizeOptionLine(ln);
+      const key = p + "_" + ln.col;
+      const s = cur.segs[key] || (cur.segs[key] = { page: p, x1: ln.x1, x2: ln.x2, y1: ln.y1, y2: ln.y2 });
+      s.x1 = Math.min(s.x1, ln.x1); s.x2 = Math.max(s.x2, ln.x2);
+      s.y1 = Math.min(s.y1, ln.y1); s.y2 = Math.max(s.y2, ln.y2);
+    }
+  }
+  for (const q of questions) {
+    const t = " " + q.text;
+    const am = t.match(OPT_A);
+    q.stemWords = normWords(am ? t.slice(0, am.index) : t).slice(0, nWords);
+    q.aWords = null;
+    if (am) {
+      let aText = t.slice(am.index + am[0].length);
+      const bm = (" " + aText).match(OPT_B);
+      if (bm) aText = (" " + aText).slice(0, bm.index);
+      const w = normWords(aText).slice(0, nWords);
+      if (w.length) q.aWords = w;
+    }
+  }
+  return { doc, questions, noText: totalChars < 20 };
+}
+
+/* ---------- karşılaştır ---------- */
+$("run").onclick = async () => {
+  if (files.length < 2) return;
+  $("run").disabled = true; $("clear").disabled = true;
+  try {
+    const nWords = Math.max(1, parseInt($("nWords").value) || 3);
+    const within = $("within").checked;
+    const rs = [];
+    for (let i = 0; i < files.length; i++) rs.push(await extractQuestions(i, nWords));
+    const bad = rs.map((r, i) => r.noText ? pdfName(i) : null).filter(Boolean);
+
+    const all = rs.flatMap(r => r.questions);
+    all.forEach(q => q.role = null);
+    const groups = [];
+    for (const g of findGroups(all, nWords, $("stemOnly").checked)) {
+      const srcs = [...new Set(g.map(q => q.src))];
+      const cross = srcs.length >= 2;
+      const self = within && srcs.some(s => g.filter(q => q.src === s).length > 1);
+      if (!cross && !self) continue;
+      g.sort((a, b) => a.src - b.src || a.page - b.page || a.num - b.num);
+      groups.push({ items: g, srcs, cross });
+      g.forEach(q => q.role = "match");
+    }
+    groups.sort((a, b) => (b.cross - a.cross) || (b.srcs.length - a.srcs.length) ||
+      (a.items[0].src - b.items[0].src) || (a.items[0].page - b.items[0].page) || (a.items[0].num - b.items[0].num));
+
+    result = { docs: rs.map(r => r.doc), qs: rs.map(r => r.questions), groups, nWords, bad };
+    Object.keys(rendered).forEach(k => delete rendered[k]);
+    renderFileList();
+    renderReport();
+    buildTabs();
+    await showTab(result.qs.findIndex(q => q.some(x => x.role)) >= 0 ? result.qs.findIndex(q => q.some(x => x.role)) : 0);
+    $("dlZip").disabled = !result.qs.some(q => q.some(x => x.role));
+    $("dlReport").disabled = false;
+
+    const crossN = groups.filter(g => g.cross).length;
+    let msg = crossN ? `Tamamlandı: ${files.length} PDF arasında ${crossN} ortak soru bulundu.` : `Tamamlandı: ${files.length} PDF arasında ortak soru bulunamadı.`;
+    if (within) { const s = groups.filter(g => !g.cross).length; if (s) msg += ` Ayrıca ${s} PDF içi tekrar var.`; }
+    if (bad.length) msg += ` ${bad.join(", ")} içinde seçilebilir metin yok (taranmış PDF olabilir); bunlar karşılaştırılamadı.`;
+    setStatus(msg, bad.length > 0);
+  } catch (err) {
+    console.error(err);
+    setStatus("Hata: " + err.message, true);
+  }
+  $("run").disabled = files.length < 2; $("clear").disabled = !files.length;
+};
+
+/* ---------- rapor ---------- */
+const qRef = q => `${pdfName(q.src)} S.${q.page} Soru ${q.num}`;
+function renderReport(){
+  const { qs, groups } = result, n = files.length;
+  const crossGroups = groups.filter(g => g.cross), selfGroups = groups.filter(g => !g.cross);
+  const totalQ = qs.reduce((a, q) => a + q.length, 0);
+  const marked = qs.reduce((a, q) => a + q.filter(x => x.role).length, 0);
+  const pdfsWith = qs.filter(q => q.some(x => x.role)).length;
+  $("stats").innerHTML = `
+    <div class="stat"><b>${n}</b><span>PDF</span></div>
+    <div class="stat"><b>${totalQ}</b><span>toplam soru algılandı</span></div>
+    <div class="stat"><b>${crossGroups.length}</b><span>PDF'ler arası ortak soru</span></div>
+    <div class="stat"><b>${marked}</b><span>işaretlenen soru (${pdfsWith} PDF'te)</span></div>`;
+
+  // PDF × PDF matrisi: kaç ortak soru (grup) paylaşıyorlar
+  const M = Array.from({ length: n }, () => Array(n).fill(0));
+  crossGroups.forEach(g => g.srcs.forEach(a => g.srcs.forEach(b => { if (a !== b) M[a][b]++; })));
+  let mh = `<table class="matrix"><thead><tr><th></th>${files.map((_, i) => `<th>PDF ${i + 1}</th>`).join("")}</tr></thead><tbody>`;
+  for (let a = 0; a < n; a++) {
+    mh += `<tr><th title="${esc(files[a].name)}">PDF ${a + 1}</th>`;
+    for (let b = 0; b < n; b++) mh += a === b ? `<td class="self">—</td>` : `<td class="${M[a][b] ? "hit" : ""}">${M[a][b] || ""}</td>`;
+    mh += "</tr>";
+  }
+  mh += "</tbody></table>";
+  mh += `<div style="font-size:12px;color:var(--muted);margin-top:6px">` + files.map((f, i) => `PDF ${i + 1}: ${esc(f.name)}`).join(" · ") + `</div>`;
+  $("matrix").innerHTML = mh;
+
+  // gruplar
+  const box = $("groups"); box.innerHTML = "";
+  if (!groups.length) box.innerHTML = "<p>Ortak soru bulunamadı.</p>";
+  groups.forEach((g, i) => {
+    const d = document.createElement("div"); d.className = "group";
+    const f = g.items[0];
+    d.innerHTML = `<b>${g.cross ? `Ortak soru ${i + 1}` : `PDF içi tekrar ${i + 1}`}</b> <span style="color:var(--muted)">(${g.srcs.length} PDF'te)</span>: ` +
+      g.items.map(q => `<a data-s="${q.src}" data-p="${q.page}">${esc(qRef(q))}</a>`).join(" = ") +
+      `<div class="q">✓ Soru kökü aynı: “${esc(f.stemWords.join(" "))} …”<br>` +
+      (f.aWords ? `✓ A şıkkı aynı: “${esc(f.aWords.join(" "))} …”` : `⚠ A şıkkı okunamadı, yalnızca soru köküyle eşleşti`) + `</div>`;
+    box.appendChild(d);
+  });
+  box.querySelectorAll("a[data-p]").forEach(a => a.onclick = async () => {
+    await showTab(+a.dataset.s);
+    const el = document.getElementById(`page-${a.dataset.s}-${a.dataset.p}`); el && el.scrollIntoView({ behavior: "smooth" });
+  });
+
+  // metin rapor
+  let txt = `ÇOKLU PDF SORU KARŞILAŞTIRMA RAPORU\n`;
+  files.forEach((f, i) => txt += `PDF ${i + 1}: ${f.name} (${qs[i].length} soru)\n`);
+  txt += `Kural: soru numarasından sonraki ilk ${result.nWords} kelime AYNI ve A şıkkının ilk ${result.nWords} kelimesi AYNI (iki koşul birlikte)\n`;
+  txt += `PDF'ler arası ortak soru: ${crossGroups.length}\n\n`;
+  if (crossGroups.length) {
+    txt += "PDF'LER ARASI ORTAK SORULAR\n";
+    crossGroups.forEach((g, i) => {
+      txt += `${i + 1}. (${g.srcs.length} PDF'te) ` + g.items.map(q => `PDF ${q.src + 1} Sayfa ${q.page} Soru ${q.num}`).join("  =  ") + "\n";
+      const f = g.items[0];
+      txt += `   Soru kökü aynı: "${f.stemWords.join(" ")}"  |  ` +
+             (f.aWords ? `A şıkkı aynı: "${f.aWords.join(" ")}"` : `A şıkkı okunamadı (yalnızca kök)`) + "\n";
+    });
+  } else txt += "PDF'ler arasında ortak soru bulunamadı.\n";
+  if (selfGroups.length) {
+    txt += "\nPDF İÇİ TEKRARLAR\n";
+    selfGroups.forEach((g, i) => txt += `${i + 1}. ` + g.items.map(q => `PDF ${q.src + 1} Sayfa ${q.page} Soru ${q.num}`).join("  =  ") + "\n");
+  }
+  txt += "\nPDF ÇİFTLERİ (ortak soru sayısı)\n";
+  let anyPair = false;
+  for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) if (M[a][b]) { anyPair = true; txt += `   PDF ${a + 1} ↔ PDF ${b + 1}: ${M[a][b]} ortak soru\n`; }
+  if (!anyPair) txt += "   Yok\n";
+  for (let i = 0; i < n; i++) {
+    const byPage = {};
+    qs[i].filter(q => q.role).forEach(q => (byPage[q.page] = byPage[q.page] || []).push(q));
+    const pages = Object.keys(byPage).sort((a, b) => a - b);
+    if (!pages.length) continue;
+    txt += `\nPDF ${i + 1} (${files[i].name}) — SAYFA BAZINDA İŞARETLENEN SORULAR\n`;
+    pages.forEach(p => {
+      const list = byPage[p].sort((a, b) => a.num - b.num).map(q => {
+        const g = groups.find(g => g.items.includes(q));
+        const others = g ? g.items.filter(x => x !== q).map(x =>
+          x.src === q.src ? `bu PDF'te S.${x.page} Soru ${x.num}` : `PDF ${x.src + 1} S.${x.page} Soru ${x.num}`) : [];
+        return `Soru ${q.num} → ${others.join("; ") || "—"}`;
+      });
+      txt += `   ${p}. sayfada:\n` + list.map(s => `      ${s}\n`).join("");
+    });
+  }
+  for (let i = 0; i < n; i++) {
+    const noA = qs[i].filter(q => q.stemWords.length && !q.aWords);
+    if (noA.length && !$("stemOnly").checked)
+      txt += `\nPDF ${i + 1}: A şıkkı okunamadığı için karşılaştırılamayan sorular: ` + noA.map(q => `Sayfa ${q.page} Soru ${q.num}`).join("; ") + "\n";
+  }
+  if (result.bad.length) txt += `\nSeçilebilir metni olmayan (karşılaştırılamayan) PDF'ler: ${result.bad.join(", ")}\n`;
+  $("reportText").value = txt;
+  $("reportCard").classList.remove("hidden");
+
+  // tüm sorular tablosu
+  const rows = qs.flat().map(q => {
+    const st = q.role ? '<b style="color:var(--pink)">EŞLEŞTİ</b>' : !q.aWords ? '<span class="warn">A şıkkı yok</span>' : "—";
+    return `<tr><td>${pdfName(q.src)}</td><td>${q.page}</td><td>${q.col === 1 ? "sağ" : "sol"}</td><td>${q.num}</td>
+      <td>${esc(q.stemWords.join(" "))}</td><td>${esc(q.aWords ? q.aWords.join(" ") : "")}</td><td>${st}</td></tr>`;
+  }).join("");
+  $("allQ").innerHTML = `<table><thead><tr><th>PDF</th><th>Sayfa</th><th>Sütun</th><th>No</th><th>İlk kelimeler</th><th>A şıkkı</th><th>Durum</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+/* ---------- işaretlenecek kutular ---------- */
+const PAD = 3;
+function marksForPage(src, p){
+  const out = [];
+  result.qs[src].forEach(q => { if (q.role) Object.values(q.segs).forEach(s => { if (s.page === p) out.push(s); }); });
+  return out;
+}
+
+/* ---------- önizleme (sekmeler, tıklanınca çizilir) ---------- */
+function buildTabs(){
+  const tabs = $("tabs"), host = $("pagesHost");
+  tabs.innerHTML = ""; host.innerHTML = "";
+  files.forEach((f, i) => {
+    const cnt = result.qs[i].filter(q => q.role).length;
+    const b = document.createElement("button"); b.id = "tab" + i;
+    b.textContent = `PDF ${i + 1}` + (cnt ? ` (${cnt})` : "");
+    b.title = f.name; b.onclick = () => showTab(i);
+    tabs.appendChild(b);
+    const d = document.createElement("div"); d.className = "pages hidden"; d.id = "pages" + i;
+    host.appendChild(d);
+  });
+  $("previewCard").classList.remove("hidden");
+}
+async function showTab(i){
+  activeTab = i;
+  files.forEach((_, j) => { $("tab" + j).classList.toggle("on", i === j); $("pages" + j).classList.toggle("hidden", i !== j); });
+  if (!rendered[i]) { rendered[i] = true; await renderPreview(i); }
+}
+async function renderPreview(src){
+  const wrap = $("pages" + src); wrap.innerHTML = "";
+  const style = $("style").value, doc = result.docs[src];
+  for (let p = 1; p <= doc.numPages; p++) {
+    setStatus(`${pdfName(src)} önizleme ${p}/${doc.numPages}…`);
+    const page = await doc.getPage(p);
+    const base = page.getViewport({ scale: 1 });
+    const scale = Math.min(1.6, 900 / base.width);
+    const vp = page.getViewport({ scale });
+    const c = document.createElement("canvas");
+    c.width = vp.width; c.height = vp.height;
+    const ctx = c.getContext("2d");
+    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+    for (const m of marksForPage(src, p)) {
+      const [ax, ay, bx, by] = vp.convertToViewportRectangle([m.x1 - PAD, m.y1 - PAD, m.x2 + PAD, m.y2 + PAD]);
+      const x = Math.min(ax, bx), y = Math.min(ay, by), w = Math.abs(bx - ax), h = Math.abs(by - ay);
+      if (style !== "cross") { ctx.fillStyle = "rgba(255,63,164,0.28)"; ctx.fillRect(x, y, w, h); }
+      ctx.strokeStyle = "rgb(255,20,147)"; ctx.lineWidth = 2 * scale;
+      ctx.strokeRect(x, y, w, h);
+      if (style !== "fill") { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w, y + h); ctx.moveTo(x + w, y); ctx.lineTo(x, y + h); ctx.stroke(); }
+    }
+    const pw = document.createElement("div"); pw.className = "pagewrap"; pw.id = `page-${src}-${p}`;
+    pw.innerHTML = `<div class="pagelabel">${pdfName(src)} — ${esc(files[src].name)} — Sayfa ${p}</div>`;
+    pw.appendChild(c); wrap.appendChild(pw);
+  }
+  setStatus(`${pdfName(src)} önizlemesi hazır.`);
+}
+$("style").onchange = async () => {
+  if (!result) return;
+  Object.keys(rendered).forEach(k => delete rendered[k]);
+  await showTab(activeTab);
+};
+
+/* ---------- işaretli PDF üret / indir ---------- */
+const outName = i => files[i].name.replace(/\.pdf$/i, "") + "_ortak_isaretli.pdf";
+async function markedBytes(src){
+  const { PDFDocument, rgb } = PDFLib;
+  const doc = await PDFDocument.load(files[src].bytes.slice(), { ignoreEncryption: true });
+  const style = $("style").value, pink = rgb(1, 0.08, 0.58);
+  doc.getPages().forEach((pg, i) => {
+    for (const m of marksForPage(src, i + 1)) {
+      const x = m.x1 - PAD, y = m.y1 - PAD, w = (m.x2 - m.x1) + 2 * PAD, h = (m.y2 - m.y1) + 2 * PAD;
+      pg.drawRectangle({
+        x, y, width: w, height: h,
+        color: style !== "cross" ? pink : undefined,
+        opacity: style !== "cross" ? 0.25 : undefined,
+        borderColor: pink, borderWidth: 1.5
+      });
+      if (style !== "fill") {
+        pg.drawLine({ start: { x, y: y + h }, end: { x: x + w, y }, thickness: 1.8, color: pink });
+        pg.drawLine({ start: { x, y }, end: { x: x + w, y: y + h }, thickness: 1.8, color: pink });
+      }
+    }
+  });
+  return await doc.save();
+}
+async function downloadOne(src){
+  if (!result) return;
+  setStatus(`${pdfName(src)} işaretleniyor…`);
+  try {
+    saveBlob(new Blob([await markedBytes(src)], { type: "application/pdf" }), outName(src));
+    setStatus(`${pdfName(src)} indirildi.`);
+  } catch (err) { console.error(err); setStatus("PDF oluşturulamadı: " + err.message, true); }
+}
+$("dlZip").onclick = async () => {
+  if (!result) return;
+  try {
+    const zip = new JSZip();
+    const used = new Set();
+    for (let i = 0; i < files.length; i++) {
+      if (!result.qs[i].some(q => q.role)) continue;
+      setStatus(`ZIP hazırlanıyor: ${pdfName(i)}…`);
+      let name = `${String(i + 1).padStart(2, "0")}_${outName(i)}`;
+      while (used.has(name)) name = "_" + name;
+      used.add(name);
+      zip.file(name, await markedBytes(i));
+    }
+    zip.file("karsilastirma_raporu.txt", $("reportText").value);
+    setStatus("ZIP sıkıştırılıyor…");
+    saveBlob(await zip.generateAsync({ type: "blob" }), "isaretli_pdfler.zip");
+    setStatus("ZIP indirildi (işaretli PDF'ler + rapor).");
+  } catch (err) { console.error(err); setStatus("ZIP oluşturulamadı: " + err.message, true); }
+};
+$("dlReport").onclick = () =>
+  saveBlob(new Blob([$("reportText").value], { type: "text/plain;charset=utf-8" }), "karsilastirma_raporu.txt");
+
+function saveBlob(blob, name){
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+</script>
+</body>
+</html>
