@@ -54,7 +54,7 @@
 <body>
 <header>
   <h1>Tekrar <span>Soru</span> Bulucu</h1>
-  <p>PDF'teki test sorularını tarar. Bir soru yalnızca <b>iki koşul birlikte</b> sağlanırsa tekrar sayılır: soru numarasından sonraki ilk 5 kelime birebir aynı <b>ve</b> A şıkkının ilk 5 kelimesi birebir aynı. Tekrar soruların üstü pembe ile işaretlenir ve rapor çıkarılır. Dosya bilgisayarınızdan çıkmaz; her şey tarayıcıda çalışır.</p>
+  <p>PDF'teki test sorularını tarar. Bir soru yalnızca <b>iki koşul birlikte</b> sağlanırsa tekrar sayılır: soru numarasından sonraki ilk 3 kelime birebir aynı <b>ve</b> A şıkkının ilk 3 kelimesi birebir aynı. Tekrar soruların üstü pembe ile işaretlenir ve rapor çıkarılır. Dosya bilgisayarınızdan çıkmaz; her şey tarayıcıda çalışır.</p>
 </header>
 
 <main>
@@ -74,7 +74,7 @@
       </label>
       <label><input type="checkbox" id="markFirst"> İlk geçen soruyu da (açık tonla) işaretle</label>
       <label><input type="checkbox" id="stemOnly"> A şıkkı okunamayan sorularda yalnızca soru köküne bak</label>
-      <label>Kelime sayısı: <input type="number" id="nWords" value="5" min="1" max="10" style="width:60px"></label>
+      <label>Kelime sayısı: <input type="number" id="nWords" value="3" min="1" max="10" style="width:60px"></label>
     </div>
     <div class="row">
       <button id="run" disabled>Tara</button>
@@ -302,7 +302,7 @@ $("run").onclick = async () => {
   try {
     setStatus("PDF okunuyor…");
     pdfDoc = await pdfjsLib.getDocument({ data: pdfBytes.slice() }).promise;
-    const nWords = Math.max(1, parseInt($("nWords").value) || 5);
+    const nWords = Math.max(1, parseInt($("nWords").value) || 3);
     const questions = [];
     let cur = null, totalChars = 0;
 
