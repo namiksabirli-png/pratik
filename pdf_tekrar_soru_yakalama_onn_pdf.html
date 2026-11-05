@@ -71,7 +71,7 @@
 <body>
 <header>
   <h1>Çoklu PDF <span>Soru</span> Karşılaştırma</h1>
-  <p>En fazla 10 PDF'i birbiriyle karşılaştırır. Bir soru yalnızca <b>iki koşul birlikte</b> sağlanırsa ortak sayılır: soru numarasının hemen ardından başlayan parçanın ilk 5 kelimesi aynı <b>ve</b> A seçeneğinin ilk 5 kelimesi aynı (seçenek daha kısaysa tamamı). Kalın yazılı soru cümlesi ve “8 TUR C 912021710 ?” gibi kayıt satırları başlangıç kabul edilmez. (I) gibi cümle sıra işaretleri kelime sayılmaz. Ortak sorular bulundukları her PDF'te pembe ile işaretlenir; her PDF ayrı ayrı indirilir, yazılı rapor çıkarılır. Dosyalar bilgisayarınızdan çıkmaz.</p>
+  <p>En fazla 10 PDF'i birbiriyle karşılaştırır. Bir soru yalnızca <b>iki koşul birlikte</b> sağlanırsa ortak sayılır: soru numarasının hemen ardından başlayan parçanın ilk 3 kelimesi aynı <b>ve</b> A seçeneğinin ilk 3 kelimesi aynı (seçenek daha kısaysa tamamı). Kalın yazılı soru cümlesi ve “8 TUR C 912021710 ?” gibi kayıt satırları başlangıç kabul edilmez. (I) gibi cümle sıra işaretleri kelime sayılmaz. Ortak sorular bulundukları her PDF'te pembe ile işaretlenir; her PDF ayrı ayrı indirilir, yazılı rapor çıkarılır. Dosyalar bilgisayarınızdan çıkmaz.</p>
 </header>
 
 <main>
@@ -92,7 +92,7 @@
       </label>
       <label><input type="checkbox" id="within"> Aynı PDF'in kendi içindeki tekrarları da bul</label>
       <label><input type="checkbox" id="stemOnly"> A şıkkı okunamayan sorularda yalnızca parça başlangıcına bak</label>
-      <label>Kelime sayısı: <input type="number" id="nWords" value="5" min="1" max="10" style="width:60px"></label>
+      <label>Kelime sayısı: <input type="number" id="nWords" value="3" min="1" max="10" style="width:60px"></label>
     </div>
     <div class="row">
       <button id="run" disabled>Karşılaştır</button>
@@ -435,7 +435,7 @@ $("run").onclick = async () => {
   if (files.length < 2) return;
   $("run").disabled = true; $("clear").disabled = true;
   try {
-    const nWords = Math.max(1, parseInt($("nWords").value) || 5);
+    const nWords = Math.max(1, parseInt($("nWords").value) || 3);
     const within = $("within").checked;
     const rs = [];
     for (let i = 0; i < files.length; i++) rs.push(await extractQuestions(i, nWords));
